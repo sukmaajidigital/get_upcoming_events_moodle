@@ -8,12 +8,16 @@ import os
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
+from dotenv import load_dotenv
+
+# Muat variabel lingkungan dari file .env
+load_dotenv()
 
 # URL Moodle
-login_url = 'https://sunan.umk.ac.id/login/index.php'
-test_session_url = 'https://sunan.umk.ac.id/login/index.php?testsession=17253'
-dashboard_url = 'https://sunan.umk.ac.id/'
-events_url = 'https://sunan.umk.ac.id/lib/ajax/service.php'
+login_url = f'{os.getenv("MOODLE_URL")}/login/index.php'
+test_session_url = f'{os.getenv("MOODLE_URL")}/login/index.php?testsession=17253'
+dashboard_url = f'{os.getenv("MOODLE_URL")}/'
+events_url = f'{os.getenv("MOODLE_URL")}/lib/ajax/service.php'
 
 # File penyimpanan session
 session_file = "session.json"
@@ -55,7 +59,7 @@ else:
     print("Menggunakan Selenium untuk login...")
 
     # Path ke ChromeDriver (ganti dengan path Anda)
-    chrome_driver_path = "chromedriver-win64/chromedriver.exe"  # Ganti dengan path ke chromedriver Anda
+    chrome_driver_path = os.getenv("CHROME_DRIVER_PATH")
 
     # Konfigurasi ChromeDriver
     service = Service(chrome_driver_path)
@@ -79,14 +83,14 @@ else:
     login_button = driver.find_element(By.ID, "loginbtn")
     chaptcha_button = driver.find_element(By.CLASS_NAME, "g-recaptcha")
 
-    username.send_keys("202253138")  # Ganti dengan username Anda
+    username.send_keys(os.getenv("DIVUSERNAME"))  # Ganti dengan username Anda
     print("typing password....")
-    password.send_keys("Ajisukma@mastiktod")  # Ganti dengan password Anda
+    password.send_keys(os.getenv("DIVPASSWORD"))  # Ganti dengan password Anda
     print("checklist chaptcha...")
 
     # Klik tombol login
     chaptcha_button.click()
-    time.sleep(2)  # Beri waktu 30 detik untuk menyelesaikan CAPTCHA
+    time.sleep(30)  # Beri waktu 30 detik untuk menyelesaikan CAPTCHA
     print("checklist chaptcha DONE")
     login_button.click()
     print("redirect to dashboard...")
@@ -197,9 +201,9 @@ with open("events.json", "w", encoding="utf-8") as f:
 print("Data event telah disimpan ke events.json")
 
 # Path ke file index.php (ganti dengan path yang sesuai)
-index_file_path = "localhost/notif_sunan/index.php"
+index_file_path = os.getenv("NOTIF_URL")
 
-chrome_path = "C:/Program Files/Google/Chrome/Application/chrome.exe"  # Contoh path di Windows
+chrome_path = os.getenv("CHROME_PATH")
 
 # Daftarkan Chrome sebagai browser
 webbrowser.register('chrome', None, webbrowser.BackgroundBrowser(chrome_path))
