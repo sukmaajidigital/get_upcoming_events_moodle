@@ -1,9 +1,13 @@
+import webbrowser
 import requests
 from bs4 import BeautifulSoup
 import time
 import re
 import json
 import os
+from selenium import webdriver
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.common.by import By
 
 # URL Moodle
 login_url = 'https://sunan.umk.ac.id/login/index.php'
@@ -47,79 +51,79 @@ if session_data:
     for key, value in cookies.items():
         session.cookies.set(key, value)
 else:
-    # **Minta username & password jika tidak ada sesi tersimpan**
-    username = '202253138'
-    password = 'Ajisukma@mastiktod'
+    # **Gunakan Selenium untuk login dan mendapatkan semua cookie**
+    print("Menggunakan Selenium untuk login...")
 
-    # Ambil token CSRF
+    # Path ke ChromeDriver (ganti dengan path Anda)
+    chrome_driver_path = "chromedriver-win64/chromedriver.exe"  # Ganti dengan path ke chromedriver Anda
+
+    # Konfigurasi ChromeDriver
+    service = Service(chrome_driver_path)
+    options = webdriver.ChromeOptions()
+
+    # Hapus mode headless untuk melihat browser
+    # options.add_argument("--headless")  # Hapus baris ini untuk melihat browser
+    options.add_argument("--disable-gpu")
+    options.add_argument("--no-sandbox")
+
+    # Inisialisasi WebDriver
+    driver = webdriver.Chrome(service=service, options=options)
+
+    # Buka halaman login
+    driver.get(login_url)
+    time.sleep(3)  # Tunggu halaman sepenuhnya dimuat
+
+    # Isi form login
+    username = driver.find_element(By.NAME, "username")
+    password = driver.find_element(By.NAME, "password")
+    login_button = driver.find_element(By.ID, "loginbtn")
+    chaptcha_button = driver.find_element(By.CLASS_NAME, "g-recaptcha")
+
+    username.send_keys("202253138")  # Ganti dengan username Anda
+    print("typing password....")
+    password.send_keys("Ajisukma@mastiktod")  # Ganti dengan password Anda
+    print("checklist chaptcha...")
+
+    # Klik tombol login
+    chaptcha_button.click()
+    time.sleep(2)  # Beri waktu 30 detik untuk menyelesaikan CAPTCHA
+    print("checklist chaptcha DONE")
+    login_button.click()
+    print("redirect to dashboard...")
+    # Tunggu hingga login selesai dan redirect ke dashboard
+    time.sleep(5)
+    # Buka dashboard untuk memastikan semua cookie diatur
+    driver.get(dashboard_url)
+    time.sleep(5)
+
+    # Ambil semua cookie
+    print("get all cookies...")
+    cookies = driver.get_cookies()
+    print("Semua cookie yang diterima:", cookies)
+
+    # Simpan cookie ke file JSON
+    with open("cookies.json", "w", encoding="utf-8") as f:
+        json.dump(cookies, f, indent=4, ensure_ascii=False)
+
+    print("Cookie telah disimpan ke cookies.json")
+
+    # Tutup browser
+    driver.quit()
+
+    # Muat cookie dari file JSON
+    with open("cookies.json", "r", encoding="utf-8") as f:
+        cookies = json.load(f)
+
+    # Tambahkan cookie ke sesi requests
+    for cookie in cookies:
+        session.cookies.set(cookie["name"], cookie["value"], domain=cookie["domain"], path=cookie["path"])
+
+    # Ambil sesskey dari halaman dashboard
     try:
-        response = session.get(login_url, headers=headers, timeout=10)
-        response.raise_for_status()
-        soup = BeautifulSoup(response.text, 'html.parser')
-        token_elem = soup.find('input', {'name': 'logintoken'})
-
-        if token_elem:
-            token = token_elem['value']
-            print(f"Token CSRF: {token}")
-        else:
-            print("Gagal menemukan token CSRF.")
-            exit()
-
-    except requests.exceptions.RequestException as e:
-        print(f"Gagal mengambil token CSRF: {e}")
-        exit()
-
-    # Data login
-    login_data = {
-        'username': username,
-        'password': password,
-        'logintoken': token
-    }
-
-    # Kirim form login
-    try:
-        print("Melakukan login...")
-        response = session.post(login_url, data=login_data, headers=headers, timeout=10)
-        response.raise_for_status()
-        
-        # Simpan semua cookie setelah login
-        cookies = session.cookies.get_dict()
-        print("Cookie setelah login:", cookies)
-
-        if 'MoodleSession' in cookies:
-            print("Login berhasil!")
-        else:
-            print("Login gagal. Periksa username dan password.")
-            exit()
-
-    except requests.exceptions.RequestException as e:
-        print(f"Gagal melakukan login: {e}")
-        exit()
-
-    # Tunggu untuk menghindari deteksi robot
-    time.sleep(3)
-
-    # Akses endpoint testsession untuk mendapatkan cookie tambahan
-    try:
-        print("Mengakses endpoint testsession...")
-        response = session.get(test_session_url, headers=headers, timeout=10)
-        response.raise_for_status()
-        print("Testsession berhasil diakses.")
-    except requests.exceptions.RequestException as e:
-        print(f"Gagal mengakses testsession: {e}")
-        exit()
-
-    # Akses dashboard untuk mendapatkan cookie tambahan
-    try:
-        print("Mengakses dashboard...")
+        print("Mengakses dashboard untuk mengambil sesskey...")
         response = session.get(dashboard_url, headers=headers, timeout=10)
         response.raise_for_status()
         
-        # Simpan semua cookie setelah mengakses dashboard
-        cookies = session.cookies.get_dict()
-        print("Cookie setelah mengakses dashboard:", cookies)
-
-        # Ambil sesskey dari halaman dashboard
         sesskey_match = re.search(r'"sesskey":"(.*?)"', response.text)
         if sesskey_match:
             sesskey = sesskey_match.group(1)
@@ -134,7 +138,7 @@ else:
     # Simpan sesi ke file JSON
     session_data = {
         "sesskey": sesskey,
-        "cookies": session.cookies.get_dict()  # Simpan semua cookie
+        "cookies": {cookie["name"]: cookie["value"] for cookie in cookies}  # Simpan semua cookie
     }
     save_session(session_data)
 
@@ -191,3 +195,14 @@ with open("events.json", "w", encoding="utf-8") as f:
     json.dump(events, f, indent=4, ensure_ascii=False)
 
 print("Data event telah disimpan ke events.json")
+
+# Path ke file index.php (ganti dengan path yang sesuai)
+index_file_path = "localhost/notif_sunan/index.php"
+
+chrome_path = "C:/Program Files/Google/Chrome/Application/chrome.exe"  # Contoh path di Windows
+
+# Daftarkan Chrome sebagai browser
+webbrowser.register('chrome', None, webbrowser.BackgroundBrowser(chrome_path))
+
+# Buka file index.php di Chrome
+webbrowser.get('chrome').open(index_file_path)

@@ -1,13 +1,20 @@
 <?php
-// Ambil data JSON dari file atau API
-$json_data = '/response.json'; // Gantilah dengan data JSON Anda
+// Ambil data JSON dari file
+$json_file = 'events.json'; // Path ke file JSON
 
-echo htmlspecialchars($data);
-// Pastikan JSON tidak error dan memiliki data events
-if ($data && isset($data[0]['data']['events'])) {
-    $events = $data[0]['data']['events'];
+// Baca file JSON
+if (file_exists($json_file)) {
+    $json_data = file_get_contents($json_file); // Baca isi file
+    $data = json_decode($json_data, true); // Decode JSON ke array PHP
+
+    // Pastikan JSON tidak error dan memiliki data events
+    if ($data && is_array($data)) {
+        $events = $data; // Data langsung berupa array event
+    } else {
+        die("Data tidak ditemukan atau format JSON tidak valid.");
+    }
 } else {
-    die("Data tidak ditemukan");
+    die("File events.json tidak ditemukan.");
 }
 ?>
 <!DOCTYPE html>
