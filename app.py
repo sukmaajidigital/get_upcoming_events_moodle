@@ -7,8 +7,9 @@ import os
 
 # URL Moodle
 login_url = 'https://sunan.umk.ac.id/login/index.php'
+test_session_url = 'https://sunan.umk.ac.id/login/index.php?testsession=17253'
 dashboard_url = 'https://sunan.umk.ac.id/'
-events_url = 'https://sunan.umk.ac.id/lib/ajax/service.py'
+events_url = 'https://sunan.umk.ac.id/lib/ajax/service.php'
 
 # File penyimpanan session
 session_file = "session.json"
@@ -98,12 +99,27 @@ else:
     # Tunggu untuk menghindari deteksi robot
     time.sleep(3)
 
-    # Ambil sesskey dari halaman dashboard
+    # Akses endpoint testsession untuk mendapatkan cookie tambahan
     try:
-        print("Mengambil sesskey...")
+        print("Mengakses endpoint testsession...")
+        response = session.get(test_session_url, headers=headers, timeout=10)
+        response.raise_for_status()
+        print("Testsession berhasil diakses.")
+    except requests.exceptions.RequestException as e:
+        print(f"Gagal mengakses testsession: {e}")
+        exit()
+
+    # Akses dashboard untuk mendapatkan cookie tambahan
+    try:
+        print("Mengakses dashboard...")
         response = session.get(dashboard_url, headers=headers, timeout=10)
         response.raise_for_status()
         
+        # Simpan semua cookie setelah mengakses dashboard
+        cookies = session.cookies.get_dict()
+        print("Cookie setelah mengakses dashboard:", cookies)
+
+        # Ambil sesskey dari halaman dashboard
         sesskey_match = re.search(r'"sesskey":"(.*?)"', response.text)
         if sesskey_match:
             sesskey = sesskey_match.group(1)
@@ -112,7 +128,7 @@ else:
             print("Sesskey tidak ditemukan. Pastikan sudah login.")
             exit()
     except requests.exceptions.RequestException as e:
-        print(f"Gagal mengambil sesskey: {e}")
+        print(f"Gagal mengakses dashboard: {e}")
         exit()
 
     # Simpan sesi ke file JSON
