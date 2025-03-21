@@ -2,6 +2,8 @@ import requests
 from bs4 import BeautifulSoup
 import time
 import re
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 # URL dan data login
 login_url = 'https://sunan.umk.ac.id/login/index.php'
@@ -12,18 +14,35 @@ events_url = 'https://sunan.umk.ac.id/lib/ajax/service.php'
 username = '202253138'
 password = 'Ajisukma@mastiktod'
 
-# Session untuk menjaga cookie
+# Setup session dengan retry mechanism
 session = requests.Session()
+retry = Retry(
+    total=5,
+    backoff_factor=1,
+    status_forcelist=[500, 502, 503, 504]
+)
+adapter = HTTPAdapter(max_retries=retry)
+session.mount("http://", adapter)
+session.mount("https://", adapter)
 
 # Header untuk meniru browser
 headers = {
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Safari/537.36'
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Safari/537.36',
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
+    'Accept-Language': 'en-US,en;q=0.9',
+    'Connection': 'keep-alive',
+    'Referer': login_url,
 }
 
-# Ambil token CSRF dan CAPTCHA (jika ada)
-response = session.get(login_url, headers=headers)
-soup = BeautifulSoup(response.text, 'html.parser')
-token = soup.find('input', {'name': 'logintoken'})['value']
+# Ambil token CSRF
+try:
+    response = session.get(login_url, headers=headers, timeout=10)
+    response.raise_for_status()
+    soup = BeautifulSoup(response.text, 'html.parser')
+    token = soup.find('input', {'name': 'logintoken'})['value']
+except requests.exceptions.RequestException as e:
+    print(f"Gagal mengambil token CSRF: {e}")
+    exit()
 
 # Data form login
 login_data = {
@@ -33,26 +52,34 @@ login_data = {
 }
 
 # Submit form login
-print("Melakukan login...")
-response = session.post(login_url, data=login_data, headers=headers)
+try:
+    print("Melakukan login...")
+    response = session.post(login_url, data=login_data, headers=headers, timeout=10)
+    response.raise_for_status()
+    if 'MoodleSession' in session.cookies:
+        print("Login berhasil!")
+    else:
+        print("Login gagal. Periksa username dan password.")
+        exit()
+except requests.exceptions.RequestException as e:
+    print(f"Gagal melakukan login: {e}")
+    exit()
 
 # Tunggu beberapa detik untuk menghindari deteksi robot
 time.sleep(5)
 
-# Cek apakah login berhasil
-if 'MoodleSession' in session.cookies:
-    print("Login berhasil!")
-else:
-    print("Login gagal. Periksa username dan password.")
+# Ambil sesskey dari halaman dashboard
+try:
+    print("Mengambil sesskey...")
+    response = session.get(dashboard_url, headers=headers, timeout=10)
+    response.raise_for_status()
+    sesskey = re.search(r'"sesskey":"(.*?)"', response.text).group(1)
+    print(f"Sesskey: {sesskey}")
+except requests.exceptions.RequestException as e:
+    print(f"Gagal mengambil sesskey: {e}")
     exit()
 
-# Ambil sesskey dari halaman dashboard
-print("Mengambil sesskey...")
-response = session.get(dashboard_url, headers=headers)
-sesskey = re.search(r'"sesskey":"(.*?)"', response.text).group(1)
-
 # Ambil data event
-print("Mengambil data event...")
 payload = [
     {
         'index': 0,
@@ -61,18 +88,19 @@ payload = [
     }
 ]
 
-response = session.post(
-    f'{events_url}?sesskey={sesskey}&info=core_calendar_get_calendar_upcoming_view',
-    json=payload,
-    headers=headers
-)
-
-# Cek apakah data event berhasil diambil
-if response.status_code == 200:
+try:
+    print("Mengambil data event...")
+    response = session.post(
+        f'{events_url}?sesskey={sesskey}&info=core_calendar_get_calendar_upcoming_view',
+        json=payload,
+        headers=headers,
+        timeout=10
+    )
+    response.raise_for_status()
     events = response.json()[0]['data']['events']
     print("Data event berhasil diambil!")
-else:
-    print("Gagal mengambil data event.")
+except requests.exceptions.RequestException as e:
+    print(f"Gagal mengambil data event: {e}")
     exit()
 
 # Tampilkan data event dalam bentuk tabel HTML
