@@ -10,6 +10,7 @@ from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from dotenv import load_dotenv
+import subprocess
 
 # Deteksi sistem operasi
 system = platform.system().lower()  # Mengembalikan 'windows', 'linux', atau 'darwin' (macOS
@@ -187,13 +188,29 @@ with open("events.json", "w", encoding="utf-8") as f:
 
 print("Data event telah disimpan ke events.json")
 
-# Path ke file index.php (ganti dengan path yang sesuai)
-index_file_path = os.getenv("NOTIF_URL")
 
-chrome_path = os.getenv("CHROME_PATH")
+# Path ke script PHP
+php_script_path = "send_whatsapp.php"
 
-# Daftarkan Chrome sebagai browser
-webbrowser.register('chrome', None, webbrowser.BackgroundBrowser(chrome_path))
+# Jalankan script PHP menggunakan subprocess
+try:
+    # Jalankan perintah PHP
+    result = subprocess.run(
+        ["php", php_script_path],  # Perintah untuk menjalankan PHP
+        capture_output=True,        # Tangkap output dan error
+        text=True                  # Output sebagai string (bukan bytes)
+    )
 
-# Buka file index.php di Chrome
-webbrowser.get('chrome').open(index_file_path)
+    # Cetak output dari script PHP
+    print("Output dari script PHP:")
+    print(result.stdout)
+
+    # Cetak error jika ada
+    if result.stderr:
+        print("Error dari script PHP:")
+        print(result.stderr)
+
+except FileNotFoundError:
+    print("PHP tidak ditemukan. Pastikan PHP terinstal dan dapat diakses dari PATH.")
+except Exception as e:
+    print(f"Terjadi kesalahan saat menjalankan script PHP: {e}")

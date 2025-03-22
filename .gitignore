@@ -4,3 +4,4 @@ session.json
 cookies.json
 .env
 response.json
+/vendor
