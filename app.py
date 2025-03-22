@@ -5,35 +5,28 @@ import time
 import re
 import json
 import os
+import platform
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from dotenv import load_dotenv
 
+# Deteksi sistem operasi
+system = platform.system().lower()  # Mengembalikan 'windows', 'linux', atau 'darwin' (macOS
+
 # Muat variabel lingkungan dari file .env
 load_dotenv()
+# Baca variabel lingkungan
+username = os.getenv("DIVUSERNAME")
+password = os.getenv("DIVPASSWORD")
 
+print(f"Username: {username}")
+print(f"Password: {password}")
 # URL Moodle
 login_url = f'{os.getenv("MOODLE_URL")}/login/index.php'
 test_session_url = f'{os.getenv("MOODLE_URL")}/login/index.php?testsession=17253'
 dashboard_url = f'{os.getenv("MOODLE_URL")}/'
 events_url = f'{os.getenv("MOODLE_URL")}/lib/ajax/service.php'
-
-# File penyimpanan session
-session_file = "session.json"
-
-# **Coba muat sesi dari file JSON jika ada**
-session = requests.Session()
-
-def load_session():
-    if os.path.exists(session_file):
-        with open(session_file, "r", encoding="utf-8") as f:
-            return json.load(f)
-    return None
-
-def save_session(data):
-    with open(session_file, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=4)
 
 # Header agar terlihat seperti browser
 headers = {
@@ -44,107 +37,101 @@ headers = {
     'Referer': login_url,
 }
 
-# **Jika session.json tersedia, gunakan kembali**
-session_data = load_session()
-if session_data:
-    print("Memuat sesi dari file JSON...")
-    sesskey = session_data.get("sesskey")
-    
-    # **Tambahkan semua cookie ke session**
-    cookies = session_data.get("cookies", {})
-    for key, value in cookies.items():
-        session.cookies.set(key, value)
+# **Gunakan Selenium untuk login dan mendapatkan semua cookie**
+print("Menggunakan Selenium untuk login...")
+
+# Tentukan path ke ChromeDriver berdasarkan sistem operasi
+if system == 'windows':
+    chrome_driver_path = 'chromedriver-win64/chromedriver.exe'
+elif system == 'darwin':  # macOS
+    chrome_driver_path = 'chromedriver-mac-arm64/chromedriver'
+elif system == 'linux':
+    chrome_driver_path = 'chromedriver-linux64/chromedriver'
 else:
-    # **Gunakan Selenium untuk login dan mendapatkan semua cookie**
-    print("Menggunakan Selenium untuk login...")
+    raise Exception(f"Sistem operasi tidak didukung: {system}")
 
-    # Path ke ChromeDriver (ganti dengan path Anda)
-    chrome_driver_path = os.getenv("CHROME_DRIVER_PATH")
+# Debugging: Cetak path ke ChromeDriver
+print(f"Sistem operasi: {system}")
+print(f"Path ke ChromeDriver: {chrome_driver_path}")
 
-    # Konfigurasi ChromeDriver
-    service = Service(chrome_driver_path)
-    options = webdriver.ChromeOptions()
+# Konfigurasi ChromeDriver
+service = Service(chrome_driver_path)
+options = webdriver.ChromeOptions()
 
-    # Hapus mode headless untuk melihat browser
-    # options.add_argument("--headless")  # Hapus baris ini untuk melihat browser
-    options.add_argument("--disable-gpu")
-    options.add_argument("--no-sandbox")
+# Hapus mode headless untuk melihat browser
+# options.add_argument("--headless")  # Menjalankan browser di latar belakang
+options.add_argument("--disable-gpu")  # Nonaktifkan GPU (diperlukan di beberapa sistem)
+options.add_argument("--no-sandbox")  # Nonaktifkan sandbox (diperlukan di beberapa sistem)
+options.add_argument("--disable-dev-shm-usage")  # Mengatasi masalah memori di Linux
+options.add_argument("--window-size=500,500")  # Atur ukuran window
 
-    # Inisialisasi WebDriver
-    driver = webdriver.Chrome(service=service, options=options)
+# Inisialisasi WebDriver
+driver = webdriver.Chrome(service=service, options=options)
 
-    # Buka halaman login
-    driver.get(login_url)
-    time.sleep(3)  # Tunggu halaman sepenuhnya dimuat
+# Buka halaman login
+driver.get(login_url)
+time.sleep(3)  # Tunggu halaman sepenuhnya dimuat
 
-    # Isi form login
-    username = driver.find_element(By.NAME, "username")
-    password = driver.find_element(By.NAME, "password")
-    login_button = driver.find_element(By.ID, "loginbtn")
-    chaptcha_button = driver.find_element(By.CLASS_NAME, "g-recaptcha")
+# Isi form login
+username = driver.find_element(By.NAME, "username")
+password = driver.find_element(By.NAME, "password")
+login_button = driver.find_element(By.ID, "loginbtn")
+chaptcha_button = driver.find_element(By.CLASS_NAME, "g-recaptcha")
 
-    username.send_keys(os.getenv("DIVUSERNAME"))  # Ganti dengan username Anda
-    print("typing password....")
-    password.send_keys(os.getenv("DIVPASSWORD"))  # Ganti dengan password Anda
-    print("checklist chaptcha...")
+username.send_keys(os.getenv("DIVUSERNAME"))  # Ganti dengan username Anda
+print("typing password....",os.getenv("DIVUSERNAME"))
+password.send_keys(os.getenv("DIVPASSWORD"))  # Ganti dengan password Anda
+print("checklist chaptcha...",os.getenv("DIVPASSWORD"))
 
-    # Klik tombol login
-    chaptcha_button.click()
-    time.sleep(30)  # Beri waktu 30 detik untuk menyelesaikan CAPTCHA
-    print("checklist chaptcha DONE")
-    login_button.click()
-    print("redirect to dashboard...")
-    # Tunggu hingga login selesai dan redirect ke dashboard
-    time.sleep(5)
-    # Buka dashboard untuk memastikan semua cookie diatur
-    driver.get(dashboard_url)
-    time.sleep(5)
+# Klik tombol login
+chaptcha_button.click()
+time.sleep(20)  # Beri waktu 30 detik untuk menyelesaikan CAPTCHA
+print("checklist chaptcha DONE")
+login_button.click()
+print("redirect to dashboard...")
+# Tunggu hingga login selesai dan redirect ke dashboard
+time.sleep(5)
+# Buka dashboard untuk memastikan semua cookie diatur
+driver.get(dashboard_url)
+time.sleep(5)
 
-    # Ambil semua cookie
-    print("get all cookies...")
-    cookies = driver.get_cookies()
-    print("Semua cookie yang diterima:", cookies)
+# Ambil semua cookie
+print("get all cookies...")
+cookies = driver.get_cookies()
+print("Semua cookie yang diterima:", cookies)
 
-    # Simpan cookie ke file JSON
-    with open("cookies.json", "w", encoding="utf-8") as f:
-        json.dump(cookies, f, indent=4, ensure_ascii=False)
+# Simpan cookie ke file JSON (opsional, bisa dihapus jika tidak diperlukan)
+with open("cookies.json", "w", encoding="utf-8") as f:
+    json.dump(cookies, f, indent=4, ensure_ascii=False)
 
-    print("Cookie telah disimpan ke cookies.json")
+print("Cookie telah disimpan ke cookies.json")
 
-    # Tutup browser
-    driver.quit()
+# Tutup browser
+driver.quit()
 
-    # Muat cookie dari file JSON
-    with open("cookies.json", "r", encoding="utf-8") as f:
-        cookies = json.load(f)
+# Inisialisasi session baru
+session = requests.Session()
 
-    # Tambahkan cookie ke sesi requests
-    for cookie in cookies:
-        session.cookies.set(cookie["name"], cookie["value"], domain=cookie["domain"], path=cookie["path"])
+# Tambahkan cookie ke sesi requests
+for cookie in cookies:
+    session.cookies.set(cookie["name"], cookie["value"], domain=cookie["domain"], path=cookie["path"])
 
-    # Ambil sesskey dari halaman dashboard
-    try:
-        print("Mengakses dashboard untuk mengambil sesskey...")
-        response = session.get(dashboard_url, headers=headers, timeout=10)
-        response.raise_for_status()
-        
-        sesskey_match = re.search(r'"sesskey":"(.*?)"', response.text)
-        if sesskey_match:
-            sesskey = sesskey_match.group(1)
-            print(f"Sesskey: {sesskey}")
-        else:
-            print("Sesskey tidak ditemukan. Pastikan sudah login.")
-            exit()
-    except requests.exceptions.RequestException as e:
-        print(f"Gagal mengakses dashboard: {e}")
+# Ambil sesskey dari halaman dashboard
+try:
+    print("Mengakses dashboard untuk mengambil sesskey...")
+    response = session.get(dashboard_url, headers=headers, timeout=10)
+    response.raise_for_status()
+    
+    sesskey_match = re.search(r'"sesskey":"(.*?)"', response.text)
+    if sesskey_match:
+        sesskey = sesskey_match.group(1)
+        print(f"Sesskey: {sesskey}")
+    else:
+        print("Sesskey tidak ditemukan. Pastikan sudah login.")
         exit()
-
-    # Simpan sesi ke file JSON
-    session_data = {
-        "sesskey": sesskey,
-        "cookies": {cookie["name"]: cookie["value"] for cookie in cookies}  # Simpan semua cookie
-    }
-    save_session(session_data)
+except requests.exceptions.RequestException as e:
+    print(f"Gagal mengakses dashboard: {e}")
+    exit()
 
 # Ambil data event dengan semua cookie yang tersimpan
 payload = [
